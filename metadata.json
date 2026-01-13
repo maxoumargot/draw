@@ -1,0 +1,7 @@
+{
+  "name": "Atelier: Gravité Synthétique",
+  "description": "Une expérience de dessin où chaque trait devient une rampe physique. Collaborez avec la gravité pour guider une particule à travers vos tracés, pendant que Gemini analyse la complexité de votre architecture.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
