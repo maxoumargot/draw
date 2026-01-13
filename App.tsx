@@ -14,7 +14,7 @@ const App: React.FC = () => {
   const [activePopup, setActivePopup] = useState<'settings' | 'drawing' | null>(null);
   const [ball, setBall] = useState<Ball>({
     pos: { ...INITIAL_BALL_POS },
-    vel: { x: 2, y: 0 },
+    vel: { x: 4, y: 0 }, // Vitesse augmentée
     radius: 12,
     color: '#000000'
   });
@@ -56,8 +56,16 @@ const App: React.FC = () => {
       }));
     };
     window.addEventListener('resize', handleResize);
+    resizeGoalToScreen();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  const resizeGoalToScreen = () => {
+     setGoal(prev => ({
+        ...prev,
+        pos: { x: window.innerWidth - 150, y: window.innerHeight - 150 }
+      }));
+  };
 
   const generateObstacles = (targetPos: Vector2D) => {
     const newObs: Obstacle[] = [];
@@ -129,7 +137,7 @@ const App: React.FC = () => {
     setBall(prev => ({
       ...prev,
       pos: { ...INITIAL_BALL_POS },
-      vel: { x: 2, y: 0 }
+      vel: { x: 4, y: 0 } // Vitesse augmentée
     }));
     setGoal(prev => ({ ...prev, reached: false }));
   };
@@ -151,7 +159,6 @@ const App: React.FC = () => {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-white text-black font-sans">
-      {/* BACKGROUND VIDEO LAYER */}
       <video 
         id="webcam-preview" 
         className={`absolute inset-0 w-full h-full object-cover scale-x-[-1] transition-opacity duration-700 grayscale ${isCameraActive ? 'opacity-20' : 'opacity-0'}`}
@@ -160,7 +167,6 @@ const App: React.FC = () => {
         playsInline
       />
 
-      {/* SIMULATION LAYER */}
       <div className="absolute inset-0 z-10">
         <SimulationCanvas 
           segments={segments}
@@ -178,12 +184,8 @@ const App: React.FC = () => {
         />
       </div>
 
-      {/* UI TRIGGERS (ICONS) */}
       <div className="absolute top-6 left-6 right-6 flex justify-between items-start pointer-events-none z-30">
-        
-        {/* Left Toolbar */}
         <div className="flex items-center gap-3 pointer-events-auto">
-          {/* Settings Toggle */}
           <div className="relative">
             <button 
               onClick={() => togglePopup('settings')}
@@ -192,8 +194,6 @@ const App: React.FC = () => {
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
             </button>
-
-            {/* Settings Popup */}
             {activePopup === 'settings' && (
               <div className="absolute top-16 left-0 w-72 glass p-5 rounded-2xl shadow-sm border border-black animate-in fade-in zoom-in duration-200">
                 <div className="flex flex-col gap-4">
@@ -209,9 +209,7 @@ const App: React.FC = () => {
                       <div className={`w-1.5 h-1.5 rounded-full ${isCameraActive ? 'bg-black' : 'bg-black/10'}`} />
                     </button>
                   </div>
-
                   <div className="h-px bg-black/10" />
-
                   <div className="flex flex-col gap-2">
                     <button onClick={resetBall} className="py-2 rounded-lg border border-black/10 text-[9px] uppercase hover:bg-gray-100">Reset Balle</button>
                   </div>
@@ -220,7 +218,6 @@ const App: React.FC = () => {
             )}
           </div>
 
-          {/* Drawing Tools Toggle */}
           <div className="relative">
             <button 
               onClick={() => togglePopup('drawing')}
@@ -229,8 +226,6 @@ const App: React.FC = () => {
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z"></path><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path><path d="m2 2 5 5"></path><path d="m11 11 5 5"></path></svg>
             </button>
-
-            {/* Drawing Tools Popup */}
             {activePopup === 'drawing' && (
               <div className="absolute top-16 left-0 w-72 glass p-5 rounded-2xl shadow-sm border border-black animate-in fade-in zoom-in duration-200">
                 <div className="flex flex-col gap-4">
@@ -254,9 +249,7 @@ const App: React.FC = () => {
                       ))}
                     </div>
                   </div>
-
                   <div className="h-px bg-black/10" />
-
                   <div className="flex flex-col gap-2">
                     <button onClick={clearDrawing} className="py-2 rounded-lg border border-black/10 text-[9px] uppercase hover:text-black hover:bg-gray-100">Nettoyer le tracé</button>
                   </div>
@@ -265,7 +258,6 @@ const App: React.FC = () => {
             )}
           </div>
 
-          {/* MAIN PLAY / RESET BUTTON */}
           <button 
             onClick={handleToggleSimulation}
             className={`px-4 h-12 flex items-center gap-2 rounded-full glass border transition-all ${simState === SimulationState.Playing ? 'bg-gray-100 border-black text-black' : 'border-black/20 text-black/80 hover:border-black'}`}
@@ -283,7 +275,6 @@ const App: React.FC = () => {
             )}
           </button>
 
-          {/* DRAWING INFO BUTTON (Indicateur de statut) */}
           <div 
             className={`px-4 h-12 flex items-center gap-2 rounded-full glass border transition-all ${isDrawingEnabled ? 'bg-black text-white border-black' : 'bg-white text-black border-black/20'}`}
           >
@@ -298,8 +289,6 @@ const App: React.FC = () => {
             </span>
           </div>
         </div>
-
-        {/* GOAL FEEDBACK CENTERED (TOP) */}
         {goal.reached && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 pointer-events-none animate-bounce">
             <div className="bg-white text-black px-6 py-2 rounded-full font-bold uppercase tracking-widest border-2 border-black">
@@ -307,10 +296,8 @@ const App: React.FC = () => {
             </div>
           </div>
         )}
-
       </div>
 
-      {/* CLICK OUTSIDE OVERLAY */}
       {activePopup && (
         <div 
           className="absolute inset-0 z-20 pointer-events-auto" 
@@ -318,7 +305,6 @@ const App: React.FC = () => {
         />
       )}
 
-      {/* STATUS INDICATOR (BOTTOM) */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-1.5 glass rounded-full border border-black/20 z-30 pointer-events-none">
         <div className="flex items-center gap-3 text-[9px] mono uppercase tracking-widest text-black">
            <div className="flex items-center gap-1.5">
@@ -335,14 +321,6 @@ const App: React.FC = () => {
              <div className={`w-1 h-1 rounded-full ${isDrawingEnabled ? 'bg-black' : 'bg-black/20'}`} />
              <span>Dessin Doigt: {isDrawingEnabled ? 'D Hold' : 'Off'}</span>
            </div>
-           {goal.reached && (
-             <>
-               <div className="w-px h-2 bg-black/20" />
-               <div className="flex items-center gap-1.5">
-                 <span>GOAL!</span>
-               </div>
-             </>
-           )}
         </div>
       </div>
     </div>

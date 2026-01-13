@@ -30,7 +30,6 @@ const SimulationCanvas: React.FC<Props> = ({
   const [isMouseDown, setIsMouseDown] = useState(false);
   const lastDrawPos = useRef<Vector2D | null>(null);
   const currentPointerPos = useRef<Vector2D | null>(null);
-  const [isFingerActive, setIsFingerActive] = useState(false);
   
   // Références persistantes pour le moteur physique
   const physBall = useRef<Ball>({ ...ball });
@@ -39,20 +38,20 @@ const SimulationCanvas: React.FC<Props> = ({
   // Configuration Tracking & Dessin
   const PROC_W = 160;
   const PROC_H = 120;
-  const DIFF_THRESHOLD = 25; // Plus sensible
-  const MOTION_MIN_COUNT = 10; // Plus sensible
-  const MIN_MOVE_DIST = 5; // Distance plus courte pour des traits plus fluides
-  const LERP_FACTOR = 0.3; // Suivi plus nerveux
+  const DIFF_THRESHOLD = 20; // Plus sensible
+  const MOTION_MIN_COUNT = 5; // Plus sensible
+  const MIN_MOVE_DIST = 4; // Traits plus denses
+  const LERP_FACTOR = 0.35; // Suivi plus nerveux
 
   // Configuration Physique
-  const SUB_STEPS = 8;
-  const GRAVITY_Y = 0.16;
-  const FRICTION = 0.994;
+  const SUB_STEPS = 10;
+  const GRAVITY_Y = 0.35; // Gravité "normale"
+  const FRICTION = 0.992; // Friction légère
   
   const TYPE_CONFIG: Record<SegmentType, { color: string; solid: boolean; bounce?: number; attraction?: number }> = {
     [SegmentType.Normal]: { color: '#000000', bounce: 0.6, solid: true },
     [SegmentType.Bouncy]: { color: '#666666', bounce: 1.2, solid: true },
-    [SegmentType.Attract]: { color: '#aaaaaa', attraction: 0.08, solid: false }
+    [SegmentType.Attract]: { color: '#aaaaaa', attraction: 0.12, solid: false }
   };
 
   // Synchronisation des segments
@@ -146,21 +145,22 @@ const SimulationCanvas: React.FC<Props> = ({
     const mainLoop = () => {
       let activePos: Vector2D | null = null;
       let drawingActive = false;
+      let detected = false;
       
       if (isCameraMode) {
         const tracking = runMotionTracking();
-        setIsFingerActive(tracking.detected);
-        if (tracking.detected) {
+        detected = tracking.detected;
+        if (detected) {
           activePos = tracking.pos!;
-          drawingActive = isDrawingEnabled; // Conditionné par la touche D
+          drawingActive = isDrawingEnabled; // Déclenché par la touche D
         }
       } else {
         activePos = currentPointerPos.current;
         drawingActive = isMouseDown;
-        setIsFingerActive(false);
+        detected = isMouseDown || !!activePos;
       }
 
-      // LOGIQUE DE DESSIN VECTORIEL
+      // LOGIQUE DE DESSIN VECTORIEL AMÉLIORÉE
       if (drawingActive && activePos) {
         if (!lastDrawPos.current) {
           lastDrawPos.current = { ...activePos };
@@ -172,16 +172,17 @@ const SimulationCanvas: React.FC<Props> = ({
               p2: { ...activePos },
               type: activeSegmentType
             };
-            // Mise à jour immédiate
-            physSegments.current = [...physSegments.current, newSeg];
-            setSegments(prev => [...prev, newSeg]);
-            // On décale l'ancrage seulement si un segment est créé pour assurer la continuité
+            
+            // On ajoute directement le segment à la référence physique pour éviter le lag de l'état React
+            const updatedSegments = [...physSegments.current, newSeg];
+            physSegments.current = updatedSegments;
+            setSegments(updatedSegments);
+            
             lastDrawPos.current = { ...activePos };
           }
         }
       } else {
-        // Mode suivi simple : l'ancrage "suit" le curseur sans tracer
-        // pour que le dessin commence exactement là où est le doigt au moment de l'appui sur D.
+        // En mode suivi simple ou repos, on synchronise l'ancre pour éviter les traits géants
         if (activePos) {
           lastDrawPos.current = { ...activePos };
         } else {
@@ -189,7 +190,7 @@ const SimulationCanvas: React.FC<Props> = ({
         }
       }
 
-      // Moteur Physique
+      // Moteur Physique (Simulé plusieurs fois par frame pour plus de stabilité)
       if (simState === SimulationState.Playing) {
         const b = physBall.current;
         const gStep = Phys.vecMult({ x: 0, y: GRAVITY_Y * gravityScale }, 1 / SUB_STEPS);
@@ -197,8 +198,10 @@ const SimulationCanvas: React.FC<Props> = ({
           b.vel = Phys.vecAdd(b.vel, gStep);
           b.vel = Phys.vecMult(b.vel, Math.pow(FRICTION, 1 / SUB_STEPS));
           b.pos = Phys.vecAdd(b.pos, Phys.vecMult(b.vel, 1 / SUB_STEPS));
+          
           const distToGoal = Phys.vecMag(Phys.vecSub(b.pos, goal.pos));
           if (distToGoal < b.radius + goal.radius) onGoalReached();
+          
           obstacles.forEach(obs => {
             const near = Phys.getNearestPointOnSegment(b.pos, { p1: obs.p1, p2: obs.p2, type: SegmentType.Normal });
             const diff = Phys.vecSub(b.pos, near);
@@ -210,11 +213,13 @@ const SimulationCanvas: React.FC<Props> = ({
               if (relV < 0) b.vel = Phys.vecAdd(b.vel, Phys.vecMult(norm, -1.8 * relV));
             }
           });
+          
           physSegments.current.forEach(seg => {
             const cfg = TYPE_CONFIG[seg.type];
             const near = Phys.getNearestPointOnSegment(b.pos, seg);
             const diff = Phys.vecSub(b.pos, near);
             const dist = Phys.vecMag(diff);
+            
             if (cfg.solid && dist < b.radius && dist > 0) {
               const norm = Phys.vecNormalize(diff);
               b.pos = Phys.vecAdd(b.pos, Phys.vecMult(norm, b.radius - dist));
@@ -225,6 +230,7 @@ const SimulationCanvas: React.FC<Props> = ({
               b.vel = Phys.vecAdd(b.vel, Phys.vecMult(Phys.vecNormalize(Phys.vecSub(near, b.pos)), force));
             }
           });
+          
           if (b.pos.y + b.radius > canvas.height || b.pos.y - b.radius < 0) b.vel.y *= -0.5;
           if (b.pos.x + b.radius > canvas.width || b.pos.x - b.radius < 0) b.vel.x *= -0.5;
           b.pos.x = Math.max(b.radius, Math.min(canvas.width - b.radius, b.pos.x));
@@ -232,11 +238,12 @@ const SimulationCanvas: React.FC<Props> = ({
         }
       }
 
-      // Rendu
+      // Rendu Graphique
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         
+        // Obstacles décoratifs
         obstacles.forEach(obs => {
           ctx.beginPath();
           ctx.moveTo(obs.p1.x, obs.p1.y);
@@ -248,6 +255,7 @@ const SimulationCanvas: React.FC<Props> = ({
           ctx.setLineDash([]);
         });
 
+        // But
         ctx.beginPath();
         ctx.arc(goal.pos.x, goal.pos.y, goal.radius, 0, Math.PI * 2);
         ctx.strokeStyle = '#000000';
@@ -256,6 +264,7 @@ const SimulationCanvas: React.FC<Props> = ({
         ctx.stroke();
         ctx.setLineDash([]);
 
+        // Segments dessinés
         [SegmentType.Normal, SegmentType.Bouncy, SegmentType.Attract].forEach(t => {
           const cfg = TYPE_CONFIG[t];
           ctx.beginPath();
@@ -271,21 +280,23 @@ const SimulationCanvas: React.FC<Props> = ({
           ctx.stroke();
         });
 
-        if (currentPointerPos.current) {
-          const isDraw = isCameraMode ? (isFingerActive && isDrawingEnabled) : isMouseDown;
-          const { x, y } = currentPointerPos.current;
+        // Curseur
+        if (activePos) {
+          const isDraw = isCameraMode ? (detected && isDrawingEnabled) : isMouseDown;
+          const { x, y } = activePos;
           ctx.save();
           ctx.translate(x, y);
           ctx.beginPath();
-          ctx.arc(0, 0, isDraw ? 20 : 12, 0, Math.PI * 2);
-          ctx.fillStyle = isDraw ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.03)';
+          ctx.arc(0, 0, isDraw ? 22 : 14, 0, Math.PI * 2);
+          ctx.fillStyle = isDraw ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.05)';
           ctx.fill();
-          ctx.strokeStyle = isDraw ? '#000000' : 'rgba(0, 0, 0, 0.2)';
-          ctx.lineWidth = 1;
-          ctx.beginPath(); ctx.moveTo(-8, 0); ctx.lineTo(8, 0); ctx.moveTo(0, -8); ctx.lineTo(0, 8); ctx.stroke();
+          ctx.strokeStyle = isDraw ? '#000000' : 'rgba(0, 0, 0, 0.3)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(10, 0); ctx.moveTo(0, -10); ctx.lineTo(0, 10); ctx.stroke();
           ctx.restore();
         }
 
+        // Balle
         const ballObj = physBall.current;
         ctx.beginPath();
         ctx.arc(ballObj.pos.x, ballObj.pos.y, ballObj.radius, 0, Math.PI * 2);
@@ -299,7 +310,7 @@ const SimulationCanvas: React.FC<Props> = ({
       cancelAnimationFrame(rafId);
       window.removeEventListener('resize', resize);
     };
-  }, [simState, isCameraMode, gravityScale, activeSegmentType, isMouseDown, isFingerActive, goal, obstacles, onGoalReached, isDrawingEnabled]);
+  }, [simState, isCameraMode, gravityScale, activeSegmentType, isMouseDown, goal, obstacles, onGoalReached, isDrawingEnabled]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isCameraMode) return;
